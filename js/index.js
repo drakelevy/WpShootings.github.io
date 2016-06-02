@@ -28,14 +28,14 @@ function setupListeners() {
 		var table = document.getElementById("stateTable");
 		var tbody = document.getElementById("stateTBody");
 		table.removeChild(tbody);
-		loadStateChart(rawData);
+		loadStateMapAndChart(rawData, false);
 	});
 }
 
 function loadCharts(rawData) {
 	loadRaceChart(rawData);
 	loadDateChart(rawData);
-	loadStateChart(rawData);
+	loadStateMapAndChart(rawData, true);
 	loadGenderChart(rawData);
 	loadMentalIllnessChart(rawData);
 	googleAnalytics();
@@ -148,6 +148,8 @@ function loadDateChart(rawData) {
 	for (var i = 0; i < rawData.length; i++) {
 		var date = rawData[i][2];
 		date = date.substring(5, 7);
+		var year = rawData[i][2];
+		year = year.substring(year.length - 4, year.length);
 
 		// If not a two digit month then remove forward slash, two digit months won't have slash
 		if (date.indexOf("/") == 1) {
@@ -156,7 +158,7 @@ function loadDateChart(rawData) {
 			date = parseInt(date) - 1;
 		}
 		
-		if (date != d.getMonth()) { //Prevent adding data for a month before the month is over
+		if (parseInt(year) != d.getFullYear() || date != d.getMonth()) { //Prevent adding data for a month before the month is over, expect if year's already passed
 			if (months[date] in dates) {
 				dates[months[date]] += 1;
 			} else {
@@ -197,10 +199,11 @@ function loadDateChart(rawData) {
 	});	
 }
 
-function loadStateChart(rawData) {
+function loadStateMapAndChart(rawData, loadMap) {
 	var data = {};
 	var states = {};
 	var sorted = [];
+	var map = {};
 	
 	//This was so time consuming and boring to write out, you should check out Hippie Sabotage
 	var statePercentage = {
@@ -214,7 +217,7 @@ function loadStateChart(rawData) {
 	"New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT",
 	"Vermont":"VT","Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY", "Washington DC":"DC"};
 	
-	//Didn't want to take the time to manually flip the key/value pairs so I'll let a for loop do it, shouldn't affect runtime
+	//Didn't want to take the time to manually flip the key/value pairs I copy pasted so I'll let a for loop do it, efficient and lazy
 	var stateAbr = {};
 	for (var key in stateAbrFlipped) {
 		stateAbr[stateAbrFlipped[key]] = key;
@@ -233,18 +236,44 @@ function loadStateChart(rawData) {
 	var statePercentCheckBox = document.getElementById("statePercent");
 	if (statePercentCheckBox.checked == true) {
 		var total = 0;
+		// Sum up total to put states relative to
 		for (var key in states) {
 			total += states[key] / statePercentage[key];
 		}
-		
+
 		for (var key in states) {
 			sorted.push({name: key, val: (((states[key] / statePercentage[key]) / total) * 100).toFixed(1)});
+			map[key] = {val : states[key]};
 		}			
 	} else {
 		for (var key in states) {
 			sorted.push({name: key, val: states[key]});
+			map[key] = {val : states[key]};
 		}	
 	}
+
+	// Don't load new map everytime
+	if (loadMap) {
+		var usaMap = new Datamap({
+			scope: 'usa',
+			element: document.getElementById('stateMap'),
+			height: 350,
+			width: 550,
+			geographyConfig: {
+				highlightBorderColor: '#bada55',
+				popupTemplate: function(geography, data) {
+					return '<div class="hoverinfo" style="position: absolute; left: 10px; background-color: black; color: white; opacity: 0.8; border-radius: 5px; width:100px"><strong>' + geography.properties.name + '</strong><br>Shootings: ' + data.val + '</div>';
+				},
+				highlightBorderWidth: 3
+			},
+			fills: {
+				defaultFill: 'rgba(151,187,205,0.8)'
+			},
+			data: map
+		});
+		usaMap.labels();
+	}
+
 	
 	sorted.sort(function(a,b) {
 		return b.val - a.val;
